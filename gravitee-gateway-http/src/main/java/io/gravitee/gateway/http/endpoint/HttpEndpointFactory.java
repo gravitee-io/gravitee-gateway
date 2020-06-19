@@ -16,6 +16,7 @@
 package io.gravitee.gateway.http.endpoint;
 
 import io.gravitee.definition.model.EndpointType;
+import io.gravitee.el.TemplateVariableProvider;
 import io.gravitee.gateway.core.endpoint.factory.template.TemplateAwareEndpointFactory;
 import io.gravitee.gateway.http.connector.VertxHttpClient;
 import org.slf4j.Logger;
@@ -34,10 +35,14 @@ import java.util.Objects;
  */
 public final class HttpEndpointFactory extends TemplateAwareEndpointFactory<io.gravitee.definition.model.endpoint.HttpEndpoint, HttpEndpoint>
         implements ApplicationContextAware {
+    
+	private static final String DICTIONARY_TEMPLATE_PROVIDER_CLASS_NAME = "io.gravitee.gateway.dictionary.DictionaryTemplateProvider";
 
     private final Logger logger = LoggerFactory.getLogger(HttpEndpointFactory.class);
 
     private ApplicationContext applicationContext;
+    
+    private TemplateVariableProvider dictionaryVariableProvider;
 
     @Override
     public boolean support(EndpointType endpointType) {
@@ -84,6 +89,9 @@ public final class HttpEndpointFactory extends TemplateAwareEndpointFactory<io.g
 
     private String convert(String value) {
         if (value != null && ! value.isEmpty()) {
+        	if(isDictionaryTemplateVariableProviderAvailable()) {
+        		dictionaryVariableProvider.provide(templateEngine.getTemplateContext());
+        	}
             return templateEngine.convert(value);
         }
 
@@ -109,5 +117,15 @@ public final class HttpEndpointFactory extends TemplateAwareEndpointFactory<io.g
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
+    }
+    
+    private boolean isDictionaryTemplateVariableProviderAvailable() {
+    	try {
+			dictionaryVariableProvider = (TemplateVariableProvider) applicationContext.getBean(applicationContext.getClassLoader().loadClass(DICTIONARY_TEMPLATE_PROVIDER_CLASS_NAME));
+			return dictionaryVariableProvider != null;
+		} catch (BeansException | ClassNotFoundException e) {
+			logger.warn("DictionaryTemplateProvider not found: Dictionary support for endpoint disabled. Reason: {}", e.toString());
+			return false;
+		}
     }
 }
